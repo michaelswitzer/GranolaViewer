@@ -35,12 +35,16 @@ export const FIELD_MAP = {
   926482: 'buttonsMenu',
 }
 
+function randomColorName() {
+  return BEACON_COLORS[Math.floor(Math.random() * BEACON_COLORS.length)].name
+}
+
 export function getDefaultColors() {
   return {
-    caseColor: 'Green',
-    buttons24mm: 'Sage',
-    buttons30mm: 'Orange',
-    buttonsMenu: 'Orange',
+    caseColor: randomColorName(),
+    buttons24mm: randomColorName(),
+    buttons30mm: randomColorName(),
+    buttonsMenu: randomColorName(),
   }
 }
 
