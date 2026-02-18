@@ -33,8 +33,8 @@ function isBottomCase(parentName) {
 function createMaterial(colorEntry, texture) {
   const opts = {
     color: colorEntry.hex,
-    metalness: colorEntry.metallic ? 0.8 : 0,
-    roughness: colorEntry.metallic ? 0.2 : 0.95,
+    metalness: 0,
+    roughness: 0.95,
   }
   if (texture) {
     opts.map = texture
