@@ -37,10 +37,10 @@ export const FIELD_MAP = {
 
 export function getDefaultColors() {
   return {
-    caseColor: 'Black',
-    buttons24mm: 'Black',
-    buttons30mm: 'Black',
-    buttonsMenu: 'Black',
+    caseColor: 'Green',
+    buttons24mm: 'Sage',
+    buttons30mm: 'Orange',
+    buttonsMenu: 'Orange',
   }
 }
 
