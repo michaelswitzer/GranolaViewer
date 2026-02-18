@@ -1,17 +1,17 @@
-import { OrbitControls, Environment } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei'
 
 export default function Scene({ children }) {
   return (
     <>
-      <color attach="background" args={['#f0f0f0']} />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 5, 5]} intensity={1} />
-      <directionalLight position={[-3, 2, -2]} intensity={0.4} />
-      <Environment preset="studio" />
+      <color attach="background" args={['#fcf6c8']} />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[2, 4, 3]} intensity={1.5} />
+      <directionalLight position={[-3, 2, -1]} intensity={0.4} />
+      <directionalLight position={[0, -1, 2]} intensity={0.2} />
       <OrbitControls
         enablePan={false}
-        minDistance={2}
-        maxDistance={8}
+        minDistance={0.1}
+        maxDistance={20}
         minPolarAngle={Math.PI / 6}
         maxPolarAngle={Math.PI / 2}
       />

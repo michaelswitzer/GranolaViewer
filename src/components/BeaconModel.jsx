@@ -1,17 +1,29 @@
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { findColor } from '../colors'
 
 const MODEL_URL = import.meta.env.VITE_MODEL_URL || ''
 
-// Maps mesh names to color state keys
-const MESH_COLOR_MAP = {
-  Case_Top: 'caseColor',
-  Case_Bottom: 'caseColor',
-  Buttons_24mm: 'buttons24mm',
-  Buttons_30mm: 'buttons30mm',
-  Buttons_Menu: 'buttonsMenu',
+// Maps parent name prefixes to color state keys
+const PARENT_PREFIX_MAP = [
+  { prefix: 'Case_Top', key: 'caseColor' },
+  { prefix: 'Case_Bottom', key: 'caseColor' },
+  { prefix: 'Buttons_24mm', key: 'buttons24mm' },
+  { prefix: 'Buttons_30mm', key: 'buttons30mm' },
+  { prefix: 'Buttons_Menu', key: 'buttonsMenu' },
+  { prefix: 'occurrence_of_', key: 'buttonsMenu' },
+]
+
+const ACRYLIC_PREFIX = 'Acrylic_Top'
+
+function getStateKey(parentName) {
+  for (const { prefix, key } of PARENT_PREFIX_MAP) {
+    if (parentName === prefix || parentName.startsWith(prefix + '_')) {
+      return key
+    }
+  }
+  return null
 }
 
 function createMaterial(colorEntry) {
@@ -25,69 +37,70 @@ function createMaterial(colorEntry) {
   return new THREE.MeshStandardMaterial({
     color: colorEntry.hex,
     metalness: 0,
-    roughness: 0.5,
+    roughness: 0.95,
   })
 }
 
 function createAcrylicMaterial() {
   return new THREE.MeshPhysicalMaterial({
-    transmission: 0.95,
-    thickness: 0.2,
-    roughness: 0.05,
-    clearcoat: 1,
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.1,
+    color: '#ffffff',
+    depthWrite: false,
   })
 }
 
 export default function BeaconModel({ colors }) {
   const { scene } = useGLTF(MODEL_URL)
-  const meshRefs = useRef({})
+  const meshGroups = useRef({})
   const materialsRef = useRef({})
 
-  // Find and cache mesh references on first load
+  // Find and group meshes by parent name on first load
   useEffect(() => {
-    const found = {}
+    const groups = {}
+
     scene.traverse((child) => {
-      if (child.isMesh) {
-        console.log('[BeaconModel] Found mesh:', child.name)
-        if (MESH_COLOR_MAP[child.name] || child.name === 'Acrylic_Top') {
-          found[child.name] = child
-        }
+      if (!child.isMesh) return
+      const parentName = child.parent?.name || 'none'
+
+      const stateKey = getStateKey(parentName)
+      if (stateKey) {
+        if (!groups[stateKey]) groups[stateKey] = []
+        groups[stateKey].push(child)
+      }
+
+      if (parentName === ACRYLIC_PREFIX || parentName.startsWith(ACRYLIC_PREFIX + '_')) {
+        child.material = createAcrylicMaterial()
       }
     })
-    meshRefs.current = found
 
-    // Apply acrylic material once
-    if (found.Acrylic_Top) {
-      found.Acrylic_Top.material = createAcrylicMaterial()
-    }
+    meshGroups.current = groups
 
     return () => {
-      // Dispose all materials on unmount
       Object.values(materialsRef.current).forEach((mat) => mat.dispose())
     }
   }, [scene])
 
   // Update materials when colors change
   useEffect(() => {
-    const meshes = meshRefs.current
+    const groups = meshGroups.current
     const oldMaterials = { ...materialsRef.current }
     const newMaterials = {}
 
-    for (const [meshName, stateKey] of Object.entries(MESH_COLOR_MAP)) {
-      const mesh = meshes[meshName]
-      if (!mesh) continue
-
+    for (const [stateKey, meshes] of Object.entries(groups)) {
       const colorName = colors[stateKey]
       const colorEntry = findColor(colorName)
       if (!colorEntry) continue
 
-      const matKey = `${meshName}_${colorName}`
       const mat = createMaterial(colorEntry)
-      newMaterials[matKey] = mat
-      mesh.material = mat
+      newMaterials[stateKey] = mat
+
+      for (const mesh of meshes) {
+        mesh.material = mat
+      }
     }
 
-    // Dispose old materials
     Object.values(oldMaterials).forEach((mat) => mat.dispose())
     materialsRef.current = newMaterials
   }, [colors])

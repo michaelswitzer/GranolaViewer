@@ -20,7 +20,7 @@ export default function App() {
 
   return (
     <>
-      <Canvas camera={{ position: [0, 2, 5], fov: 45 }}>
+      <Canvas camera={{ position: [0, 0.1, 0.25], fov: 45 }}>
         <Scene>
           <Suspense fallback={null}>
             {MODEL_URL && <BeaconModel colors={colors} />}
