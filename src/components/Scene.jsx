@@ -12,8 +12,8 @@ export default function Scene({ children }) {
         enablePan={false}
         minDistance={0.1}
         maxDistance={20}
-        minPolarAngle={Math.PI / 6}
-        maxPolarAngle={Math.PI / 2}
+        minPolarAngle={0}
+        maxPolarAngle={Math.PI}
       />
       {children}
     </>
