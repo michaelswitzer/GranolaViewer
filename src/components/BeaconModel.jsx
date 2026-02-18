@@ -235,7 +235,7 @@ export default function BeaconModel({ colors }) {
     }
   }, [logoTexture])
 
-  // Find and group meshes by parent name on first load
+  // Find and group meshes by parent name, create materials once
   useEffect(() => {
     const groups = {}
     const bottoms = []
@@ -279,51 +279,51 @@ export default function BeaconModel({ colors }) {
       logoMesh.current = largest
     }
 
-    return () => {
-      Object.values(materialsRef.current).forEach((mat) => mat.dispose())
-    }
-  }, [scene])
-
-  // Update materials when colors change
-  useEffect(() => {
-    const groups = meshGroups.current
-    const oldMaterials = { ...materialsRef.current }
+    // Create one material per group and assign to meshes — colors are updated in place later
     const newMaterials = {}
-
     for (const [stateKey, meshes] of Object.entries(groups)) {
-      const colorName = colors[stateKey]
-      const colorEntry = findColor(colorName)
-      if (!colorEntry) continue
-
-      const mat = createMaterial(colorEntry)
+      const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0, roughness: 0.95 })
       newMaterials[stateKey] = mat
-
-      const logoMat = logoMesh.current && logoTexture
-        ? new THREE.MeshStandardMaterial({
-            color: '#000000',
-            emissiveMap: logoTexture,
-            emissive: '#ffffff',
-            emissiveIntensity: 1,
-            metalness: 0,
-            roughness: 0.95,
-          })
-        : null
-      if (logoMat) {
-        newMaterials[stateKey + '_logo'] = logoMat
-      }
-
       for (const mesh of meshes) {
-        if (mesh === logoMesh.current && logoMat) {
-          mesh.material = logoMat
-        } else {
+        if (mesh !== logoMesh.current) {
           mesh.material = mat
         }
       }
     }
 
-    Object.values(oldMaterials).forEach((mat) => mat.dispose())
+    // Create logo material once
+    if (logoMesh.current && logoTexture) {
+      const logoMat = new THREE.MeshStandardMaterial({
+        color: '#000000',
+        emissiveMap: logoTexture,
+        emissive: '#ffffff',
+        emissiveIntensity: 1,
+        metalness: 0,
+        roughness: 0.95,
+      })
+      newMaterials['_logo'] = logoMat
+      logoMesh.current.material = logoMat
+    }
+
+    Object.values(materialsRef.current).forEach((mat) => mat.dispose())
     materialsRef.current = newMaterials
-  }, [colors, logoTexture])
+
+    return () => {
+      Object.values(materialsRef.current).forEach((mat) => mat.dispose())
+    }
+  }, [scene, logoTexture])
+
+  // Update material colors when colors change — mutates in place, no GPU allocation
+  useEffect(() => {
+    for (const [stateKey, colorName] of Object.entries(colors)) {
+      const mat = materialsRef.current[stateKey]
+      const colorEntry = findColor(colorName)
+      if (mat && colorEntry) {
+        mat.color.set(colorEntry.hex)
+        mat.needsUpdate = true
+      }
+    }
+  }, [colors])
 
   return <primitive object={scene} />
 }
