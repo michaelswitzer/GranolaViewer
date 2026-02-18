@@ -9,7 +9,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://granola.games https://*.myshopify.com https://*.shopify.com"
+          "value": "frame-ancestors *"
         }
       ]
     }
