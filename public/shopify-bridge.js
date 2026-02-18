@@ -2,12 +2,18 @@
   'use strict'
 
   var IFRAME_ID = 'beacon-viewer'
-  var FIELD_LABELS = {
-    'Case Color': 313063,
-    '24mm Buttons Color': 784763,
-    '30mm Buttons Color': 779935,
-    'Menu Buttons Color': 926482,
+
+  // Trademark Customs field IDs we care about
+  var KNOWN_FIELD_IDS = {
+    313063: true, // Case Color
+    784763: true, // 24mm Buttons Color
+    779935: true, // 30mm Buttons Color
+    926482: true, // Menu Buttons Color
   }
+
+  // Regex to parse TC radio input IDs:
+  // tcustomizer-form-field-{FIELD_ID}-{PRODUCT_ID}-{ColorName}
+  var TC_ID_PATTERN = /^tcustomizer-form-field-(\d+)-(\d+)-(.+)$/
 
   var iframe = null
   var ready = false
@@ -30,91 +36,27 @@
     queue = []
   }
 
-  // Find the field ID from a label string
-  function fieldIdFromLabel(label) {
-    for (var key in FIELD_LABELS) {
-      if (label.indexOf(key) !== -1) {
-        return FIELD_LABELS[key]
-      }
-    }
-    return null
-  }
-
-  // Extract color name from an element (input value, selected option text, swatch label, etc.)
-  function extractColorValue(el) {
-    if (el.tagName === 'SELECT') {
-      return el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : ''
-    }
-    if (el.tagName === 'INPUT') {
-      if (el.type === 'radio' || el.type === 'checkbox') {
-        // Look for a nearby label
-        var label =
-          el.closest('label') ||
-          document.querySelector('label[for="' + el.id + '"]')
-        return label ? label.textContent.trim() : el.value
-      }
-      return el.value
-    }
-    return ''
-  }
-
-  // Find the closest field label for a changed element
-  function findFieldLabel(el) {
-    // Walk up the DOM looking for a label or heading that matches our known fields
-    var node = el
-    for (var i = 0; i < 10 && node; i++) {
-      var text = node.textContent || ''
-      for (var key in FIELD_LABELS) {
-        if (text.indexOf(key) !== -1) {
-          return key
-        }
-      }
-      node = node.parentElement
-    }
-    return null
+  function handleRadioInput(input) {
+    if (!input.checked) return
+    var match = TC_ID_PATTERN.exec(input.id)
+    if (!match) return
+    var fieldId = parseInt(match[1], 10)
+    var colorName = match[3]
+    if (!KNOWN_FIELD_IDS[fieldId] || !colorName) return
+    send({ type: 'SET_COLOR', fieldId: fieldId, colorName: colorName })
   }
 
   function handleChange(e) {
     var target = e.target
-    if (!target || (!target.tagName === 'INPUT' && !target.tagName === 'SELECT'))
-      return
-
-    var label = findFieldLabel(target)
-    if (!label) return
-
-    var fieldId = FIELD_LABELS[label]
-    var colorName = extractColorValue(target)
-    if (!fieldId || !colorName) return
-
-    send({ type: 'SET_COLOR', fieldId: fieldId, colorName: colorName })
+    if (!target || target.tagName !== 'INPUT' || target.type !== 'radio') return
+    if (!target.classList.contains('tcustomizer__btn-check')) return
+    handleRadioInput(target)
   }
 
-  // Read current values from all fields and sync
   function syncCurrentValues() {
-    var form = document.querySelector('form[action*="/cart"]') || document.querySelector('.product-form')
-    if (!form) return
-
-    var selects = form.querySelectorAll('select')
-    selects.forEach(function (sel) {
-      var label = findFieldLabel(sel)
-      if (!label) return
-      var fieldId = FIELD_LABELS[label]
-      var colorName = extractColorValue(sel)
-      if (fieldId && colorName) {
-        send({ type: 'SET_COLOR', fieldId: fieldId, colorName: colorName })
-      }
-    })
-
-    // Also check for checked radio buttons
-    var radios = form.querySelectorAll('input[type="radio"]:checked')
-    radios.forEach(function (radio) {
-      var label = findFieldLabel(radio)
-      if (!label) return
-      var fieldId = FIELD_LABELS[label]
-      var colorName = extractColorValue(radio)
-      if (fieldId && colorName) {
-        send({ type: 'SET_COLOR', fieldId: fieldId, colorName: colorName })
-      }
+    var checked = document.querySelectorAll('input.tcustomizer__btn-check[type="radio"]:checked')
+    checked.forEach(function (input) {
+      handleRadioInput(input)
     })
   }
 
@@ -131,29 +73,22 @@
       }
     })
 
-    // Use event delegation on the product form area
-    var formContainer =
-      document.querySelector('form[action*="/cart"]') ||
-      document.querySelector('.product-form') ||
-      document.body
+    // Listen for TC radio changes on the whole document (TC widget may be outside the cart form)
+    document.addEventListener('change', handleChange, true)
 
-    formContainer.addEventListener('change', handleChange, true)
-
-    // MutationObserver to detect Tapcart dynamic field rendering
+    // MutationObserver: re-sync when TC dynamically updates the DOM
     var observer = new MutationObserver(function () {
-      // Re-sync when DOM changes (Tapcart fields may have appeared)
-      if (ready) {
-        syncCurrentValues()
-      }
+      if (ready) syncCurrentValues()
     })
 
-    observer.observe(formContainer, {
+    observer.observe(document.body, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: ['checked'],
     })
   }
 
-  // Wait for DOM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init)
   } else {
