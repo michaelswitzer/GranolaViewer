@@ -2,6 +2,8 @@
 
 A React + Three.js product viewer for [Granola](https://granola.games) controllers. Displays a 3D model that updates colors in real-time based on Shopify product customization selections. Supports multiple products from a single deployment.
 
+![Beacon 3D Configurator on Shopify](docs/beaconexample.png)
+
 ## Setup
 
 ```bash
