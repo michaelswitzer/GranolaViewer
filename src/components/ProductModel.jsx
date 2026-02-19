@@ -3,43 +3,13 @@ import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { findColor } from '../colors'
 
-const MODEL_URL = import.meta.env.VITE_MODEL_URL || ''
-
-// Maps parent name prefixes to color state keys
-const PARENT_PREFIX_MAP = [
-  { prefix: 'Case_Top', key: 'caseColor' },
-  { prefix: 'Case_Bottom', key: 'caseColor' },
-  { prefix: 'Buttons_24mm', key: 'buttons24mm' },
-  { prefix: 'Buttons_30mm', key: 'buttons30mm' },
-  { prefix: 'Buttons_Menu', key: 'buttonsMenu' },
-  { prefix: 'occurrence_of_', key: 'buttonsMenu' },
-]
-
-const ACRYLIC_PREFIX = 'Acrylic_Top'
-
-function getStateKey(parentName) {
-  for (const { prefix, key } of PARENT_PREFIX_MAP) {
+function getStateKey(parentName, parentPrefixMap) {
+  for (const { prefix, key } of parentPrefixMap) {
     if (parentName === prefix || parentName.startsWith(prefix + '_')) {
       return key
     }
   }
   return null
-}
-
-function isBottomCase(parentName) {
-  return parentName === 'Case_Bottom' || parentName.startsWith('Case_Bottom_')
-}
-
-function createMaterial(colorEntry, texture) {
-  const opts = {
-    color: colorEntry.hex,
-    metalness: 0,
-    roughness: 0.95,
-  }
-  if (texture) {
-    opts.map = texture
-  }
-  return new THREE.MeshStandardMaterial(opts)
 }
 
 function createAcrylicMaterial() {
@@ -52,7 +22,7 @@ function createAcrylicMaterial() {
   })
 }
 
-// Find the Case_Bottom mesh that contains the single largest coplanar face
+// Find the mesh that contains the single largest coplanar face
 function findLargestBottomMesh(meshes) {
   const vA = new THREE.Vector3()
   const vB = new THREE.Vector3()
@@ -96,12 +66,12 @@ function findLargestBottomMesh(meshes) {
       if (area > bestArea) {
         bestArea = area
         bestMesh = mesh
-        console.log(`[BeaconModel] New best mesh: ${mesh.name} parent=${mesh.parent?.name} normal=${key} area=${area.toFixed(6)}`)
+        console.log(`[ProductModel] New best mesh: ${mesh.name} parent=${mesh.parent?.name} normal=${key} area=${area.toFixed(6)}`)
       }
     }
   }
 
-  console.log(`[BeaconModel] Selected logo mesh: ${bestMesh?.name} area=${bestArea.toFixed(6)}`)
+  console.log(`[ProductModel] Selected logo mesh: ${bestMesh?.name} area=${bestArea.toFixed(6)}`)
   return bestMesh
 }
 
@@ -122,8 +92,6 @@ function generateLargestFaceUVs(mesh) {
   const edge2 = new THREE.Vector3()
   const faceNormal = new THREE.Vector3()
 
-  // Bucket triangles by quantized normal direction
-  // key: "nx,ny,nz" rounded to 1 decimal -> { normal, totalArea, triangles[] }
   const buckets = new Map()
 
   for (let t = 0; t < triCount; t++) {
@@ -151,7 +119,6 @@ function generateLargestFaceUVs(mesh) {
     bucket.triangles.push(i0, i1, i2)
   }
 
-  // Find the bucket with the largest total area
   let largest = null
   let maxArea = 0
   for (const bucket of buckets.values()) {
@@ -163,32 +130,26 @@ function generateLargestFaceUVs(mesh) {
 
   if (!largest) return false
 
-  console.log('[BeaconModel] Largest face normal:', largest.normal, 'area:', maxArea.toFixed(4), 'tris:', largest.triangles.length / 3)
+  console.log('[ProductModel] Largest face normal:', largest.normal, 'area:', maxArea.toFixed(4), 'tris:', largest.triangles.length / 3)
 
-  // Determine projection axes based on the dominant normal
   const absN = new THREE.Vector3(
     Math.abs(largest.normal.x),
     Math.abs(largest.normal.y),
     Math.abs(largest.normal.z)
   )
 
-  // Project onto the plane perpendicular to the dominant normal
   let getU, getV
   if (absN.y >= absN.x && absN.y >= absN.z) {
-    // Normal is mostly Y — project onto XZ
     getU = (i) => position.getX(i)
     getV = (i) => position.getZ(i)
   } else if (absN.x >= absN.y && absN.x >= absN.z) {
-    // Normal is mostly X — project onto YZ
     getU = (i) => position.getZ(i)
     getV = (i) => position.getY(i)
   } else {
-    // Normal is mostly Z — project onto XY
     getU = (i) => position.getX(i)
     getV = (i) => position.getY(i)
   }
 
-  // Find bounds of the target vertices
   const targetVerts = new Set(largest.triangles)
   let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity
   for (const vi of targetVerts) {
@@ -202,7 +163,6 @@ function generateLargestFaceUVs(mesh) {
   const rangeU = maxU - minU || 1
   const rangeV = maxV - minV || 1
 
-  // Set UVs — target face gets proper projection, everything else goes off-texture
   const uvs = new Float32Array(position.count * 2)
   for (let i = 0; i < position.count; i++) {
     if (targetVerts.has(i)) {
@@ -218,9 +178,9 @@ function generateLargestFaceUVs(mesh) {
   return true
 }
 
-export default function BeaconModel({ colors }) {
-  const { scene } = useGLTF(MODEL_URL)
-  const logoTexture = useTexture('/granola-logo.png')
+export default function ProductModel({ colors, config }) {
+  const { scene } = useGLTF(config.modelUrl)
+  const logoTexture = useTexture(config.logo.texture)
   const meshGroups = useRef({})
   const logoMesh = useRef(null)
   const materialsRef = useRef({})
@@ -244,17 +204,17 @@ export default function BeaconModel({ colors }) {
       if (!child.isMesh) return
       const parentName = child.parent?.name || 'none'
 
-      const stateKey = getStateKey(parentName)
+      const stateKey = getStateKey(parentName, config.parentPrefixMap)
       if (stateKey) {
         if (!groups[stateKey]) groups[stateKey] = []
         groups[stateKey].push(child)
       }
 
-      if (isBottomCase(parentName)) {
+      if (config.logo.enabled && config.logo.bottomGroupTest(parentName)) {
         bottoms.push(child)
       }
 
-      if (parentName === ACRYLIC_PREFIX || parentName.startsWith(ACRYLIC_PREFIX + '_')) {
+      if (parentName === config.acrylicPrefix || parentName.startsWith(config.acrylicPrefix + '_')) {
         child.material = createAcrylicMaterial()
       }
     })
@@ -262,24 +222,25 @@ export default function BeaconModel({ colors }) {
     meshGroups.current = groups
 
     // Find the largest bottom mesh for the logo
-    const largest = findLargestBottomMesh(bottoms)
-    if (largest) {
-      // Log bounds to debug positioning
-      largest.geometry.computeBoundingBox()
-      const box = largest.geometry.boundingBox
-      console.log('[BeaconModel] Logo mesh bounds:', {
-        min: { x: box.min.x.toFixed(3), y: box.min.y.toFixed(3), z: box.min.z.toFixed(3) },
-        max: { x: box.max.x.toFixed(3), y: box.max.y.toFixed(3), z: box.max.z.toFixed(3) },
-        hasNormals: !!largest.geometry.attributes.normal,
-        hasUV: !!largest.geometry.attributes.uv,
-        verts: largest.geometry.attributes.position.count,
-      })
+    if (config.logo.enabled && bottoms.length > 0) {
+      const largest = findLargestBottomMesh(bottoms)
+      if (largest) {
+        largest.geometry.computeBoundingBox()
+        const box = largest.geometry.boundingBox
+        console.log('[ProductModel] Logo mesh bounds:', {
+          min: { x: box.min.x.toFixed(3), y: box.min.y.toFixed(3), z: box.min.z.toFixed(3) },
+          max: { x: box.max.x.toFixed(3), y: box.max.y.toFixed(3), z: box.max.z.toFixed(3) },
+          hasNormals: !!largest.geometry.attributes.normal,
+          hasUV: !!largest.geometry.attributes.uv,
+          verts: largest.geometry.attributes.position.count,
+        })
 
-      generateLargestFaceUVs(largest)
-      logoMesh.current = largest
+        generateLargestFaceUVs(largest)
+        logoMesh.current = largest
+      }
     }
 
-    // Create one material per group and assign to meshes — colors are updated in place later
+    // Create one material per group and assign to meshes
     const newMaterials = {}
     for (const [stateKey, meshes] of Object.entries(groups)) {
       const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0, roughness: 0.95 })
@@ -292,7 +253,7 @@ export default function BeaconModel({ colors }) {
     }
 
     // Create logo material once
-    if (logoMesh.current && logoTexture) {
+    if (config.logo.enabled && logoMesh.current && logoTexture) {
       const logoMat = new THREE.MeshStandardMaterial({
         color: '#000000',
         emissiveMap: logoTexture,
@@ -311,9 +272,9 @@ export default function BeaconModel({ colors }) {
     return () => {
       Object.values(materialsRef.current).forEach((mat) => mat.dispose())
     }
-  }, [scene, logoTexture])
+  }, [scene, logoTexture, config])
 
-  // Update material colors when colors change — mutates in place, no GPU allocation
+  // Update material colors when colors change
   useEffect(() => {
     for (const [stateKey, colorName] of Object.entries(colors)) {
       const mat = materialsRef.current[stateKey]
@@ -326,8 +287,4 @@ export default function BeaconModel({ colors }) {
   }, [colors])
 
   return <primitive object={scene} />
-}
-
-if (MODEL_URL) {
-  useGLTF.preload(MODEL_URL)
 }

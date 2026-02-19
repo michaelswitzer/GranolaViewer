@@ -27,25 +27,14 @@ export const BEACON_COLORS = [
   { name: 'Metallic Blue', hex: '#0d2440', metallic: true },
 ]
 
-// Maps Tapcart field IDs to our state keys
-export const FIELD_MAP = {
-  313063: 'caseColor',
-  784763: 'buttons24mm',
-  779935: 'buttons30mm',
-  926482: 'buttonsMenu',
-}
-
 function randomColorName() {
   return BEACON_COLORS[Math.floor(Math.random() * BEACON_COLORS.length)].name
 }
 
-export function getDefaultColors() {
-  return {
-    caseColor: randomColorName(),
-    buttons24mm: randomColorName(),
-    buttons30mm: randomColorName(),
-    buttonsMenu: randomColorName(),
-  }
+export function getDefaultColors(colorStateKeys) {
+  const result = {}
+  for (const key of colorStateKeys) result[key] = randomColorName()
+  return result
 }
 
 export function findColor(name) {
