@@ -14,56 +14,74 @@ No linting or test tooling is configured.
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` and set `VITE_MODEL_URL` to the GLTF model URL. The model will not render without this variable set.
+Copy `.env.example` to `.env` and set model URLs. Models will not render without these variables set.
 
 ```
-VITE_MODEL_URL=https://example.com/beacon.gltf
+VITE_BEACON_MODEL_URL=/beacon.gltf
+VITE_PLATEAU_MODEL_URL=/plateau.gltf
+VITE_MODEL_URL=/beacon.gltf   # legacy fallback for Beacon
 ```
 
 ## Architecture
 
+### Multi-Product System
+
+The app supports multiple controller products from a single deployment. Product is selected via URL parameter: `?product=beacon` (default) or `?product=plateau`.
+
+All product configs live in `src/products.jsx`. Each config defines: model URL, camera position, color state keys, default colors, Shopify field ID mapping, GLTF mesh grouping rules (parentPrefixMap), acrylic settings, and logo settings.
+
+To add a new product: add a config object to `products.jsx`, create a Shopify bridge script in `public/`, and add the model GLTF to `public/`.
+
 ### Data Flow
 
 ```
-Shopify page (shopify-bridge.js)
-  → reads Trademark Customs radio inputs (.tcustomizer__btn-check)
+Shopify page (shopify-bridge-{product}.js)
+  → reads TC radio inputs or select dropdowns
   → postMessage({ type: 'SET_COLOR', fieldId, colorName })
-  → iframe (this React app)
-    → useShopifyBridge.js translates fieldId → state key via FIELD_MAP
+  → iframe (this React app, loaded with ?product=...)
+    → useShopifyBridge.js translates fieldId → state key via config.fieldMap
+    → specialFields handlers (e.g. Plateau "all buttons same color" dropdown)
     → App.jsx colors state updates
-    → BeaconModel.jsx re-applies Three.js materials
+    → ProductModel.jsx re-applies Three.js materials
 ```
 
-The app also emits `{ type: 'VIEWER_READY' }` to the parent on mount, which triggers `shopify-bridge.js` to flush its queue and sync current selections.
+The app also emits `{ type: 'VIEWER_READY' }` to the parent on mount, which triggers the bridge script to flush its queue and sync current selections.
 
 ### Color System (`src/colors.js`)
 
-- `BEACON_COLORS` — master palette (name, hex, metallic flag)
-- `FIELD_MAP` — maps Tapcart/TC field IDs to the four color state keys: `caseColor`, `buttons24mm`, `buttons30mm`, `buttonsMenu`
-- `getDefaultColors()` — initial state used by `App`
-- `findColor(name)` — case-insensitive lookup used by `BeaconModel`
+- `BEACON_COLORS` — master palette shared across all products (name, hex, metallic flag)
+- `getDefaultColors(colorStateKeys, defaultColors)` — returns `defaultColors` if provided by config, otherwise randomizes
+- `findColor(name)` — case-insensitive lookup used by `ProductModel`
 
-### 3D Model (`src/components/BeaconModel.jsx`)
+### 3D Model (`src/components/ProductModel.jsx`)
 
-**Mesh grouping:** On first load, the GLTF scene is traversed and meshes are bucketed by their parent node name using `PARENT_PREFIX_MAP`. Each prefix maps to one of the four color state keys. Meshes without a matching parent are ignored (assumed to be structural/fixed parts).
+**Mesh grouping:** On first load, the GLTF scene is traversed. For each mesh, the code walks up the ancestor node chain looking for a name that matches a prefix in the product's `parentPrefixMap`. This supports two patterns:
 
-**Logo placement:** The `Case_Bottom` group contains several meshes. `findLargestBottomMesh` finds the one containing the single largest coplanar face (by summing triangle area per quantized face normal). `generateLargestFaceUVs` then procedurally generates UVs for that face by projecting onto the plane perpendicular to its dominant normal — vertices not on the target face are sent off-texture at UV (-1, -1). The logo texture is applied as an `emissiveMap` on black base material so it renders on top of the case color.
+- **Direct parent matching** (Beacon): meshes are direct children of named groups like `Case_Top`, `Buttons_24mm`
+- **Subassembly matching** (Plateau): meshes are nested inside subassemblies (e.g. `Directions_Buttons > occurrence of Buttons_24mm > Buttons_24mm`). The ancestor walk finds the subassembly name regardless of nesting depth.
+
+Names with GLTF export suffixes like ` <1>` are automatically stripped before matching.
+
+**Logo placement:** Configured per product via `config.logo`. When enabled, `findLargestBottomMesh` finds the mesh with the single largest coplanar face (by summing triangle area per quantized face normal). `generateLargestFaceUVs` procedurally generates UVs for that face. The logo texture is applied as an `emissiveMap` on black base material. Currently enabled for Beacon only.
 
 **Material strategy:**
-- Regular meshes: `MeshStandardMaterial` (roughness 0.95, metalness 0) — metallic colors in the palette use the same material, no metalness applied
-- Acrylic top: `MeshPhysicalMaterial` (transparent, opacity 0.35, depthWrite false)
+- Regular meshes: `MeshStandardMaterial` (roughness 0.95, metalness 0) — one shared material per color group, color updated in place
+- Acrylic top (if `config.acrylicPrefix` is set): `MeshPhysicalMaterial` (transparent, opacity 0.35, depthWrite false)
 - Logo mesh: `MeshStandardMaterial` with `emissiveMap` set to `granola-logo.png`
-
-Materials are disposed and recreated on every color change to avoid leaks.
 
 ### Scene (`src/components/Scene.jsx`)
 
-Three-point lighting plus `OrbitControls` with pan disabled and full vertical rotation (polar angle 0 → π). Camera is set in `App.jsx` at `[0, 0.1, 0.25]` with 45° FOV.
+Three-point lighting plus `OrbitControls` with pan disabled and full vertical rotation (polar angle 0 → π). Camera position and FOV are set per product config.
 
-### Shopify Bridge (`public/shopify-bridge.js`)
+### Shopify Bridges (`public/shopify-bridge*.js`)
 
-Vanilla JS IIFE loaded directly on the Shopify product page (not bundled by Vite). Parses TC radio input IDs using the pattern `tcustomizer-form-field-{FIELD_ID}-{PRODUCT_ID}-{ColorName}`. Uses a `MutationObserver` to re-sync when the TC widget updates the DOM dynamically. The iframe must have `id="beacon-viewer"`.
+Vanilla JS IIFEs loaded directly on the Shopify product page (not bundled by Vite). Each product has its own bridge script:
+
+- `shopify-bridge.js` — Beacon. Handles TC radio inputs only. iframe id: `beacon-viewer`.
+- `shopify-bridge-plateau.js` — Plateau. Handles both TC radio inputs (case color) and `<select>` dropdowns (button colors). iframe id: `plateau-viewer`.
+
+Both parse TC element IDs using the pattern `tcustomizer-form-field-{FIELD_ID}-{PRODUCT_ID}-{ColorName}` (radios) or `tcustomizer-form-field-{FIELD_ID}-{PRODUCT_ID}` (selects). Both use `MutationObserver` to re-sync when the TC widget updates the DOM dynamically.
 
 ## Deployment
 
-Deployed to Vercel. `vercel.json` configures CORS headers permitting `granola.games` and Shopify origins. The `public/` directory is served as-is (GLTF model, logo texture, bridge script).
+Deployed to Vercel. `vercel.json` configures CORS headers permitting `granola.games` and Shopify origins. The `public/` directory is served as-is (GLTF models, logo texture, bridge scripts). Environment variables for model URLs must be set in Vercel project settings.
