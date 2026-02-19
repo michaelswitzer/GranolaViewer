@@ -26,6 +26,22 @@ Each product config in `src/products.jsx` defines:
 - GLTF mesh grouping rules (parent prefix map)
 - Optional acrylic and logo settings
 
+## Preparing a GLTF Model
+
+The viewer maps color groups to parts of the 3D model by matching node names in the GLTF hierarchy. When preparing your model:
+
+1. **Organize your assembly** — Group parts that should share a color together. You can either:
+   - **Name parts directly** (e.g. `Case_Top`, `Buttons_24mm`) if each colorable group uses unique geometry
+   - **Use subassemblies** (e.g. a `Directions_Buttons` subassembly containing multiple instances of `Buttons_24mm`) when parts share the same geometry but belong to different color groups
+
+2. **Choose meaningful names** — The viewer walks up the node hierarchy looking for names that match the prefixes in your product config's `parentPrefixMap`. For example, a mesh inside a subassembly named `Directions_Buttons` will match the prefix `Directions_Buttons` regardless of nesting depth.
+
+3. **Export as GLTF/GLB** — Use your CAD or 3D modeling tool's GLTF exporter. Most tools (Blender, Onshape, Fusion 360, etc.) support GLTF export. Ensure node names are preserved during export — some exporters may append suffixes like ` <1>` which the viewer strips automatically.
+
+4. **Place the file** — Drop the exported `.gltf` or `.glb` file into the `public/` directory.
+
+5. **Add the product config** — Add an entry to `src/products.jsx` with a `parentPrefixMap` that maps your assembly node names to color state keys.
+
 ## How It Works
 
 - **3D Viewer** — Built with `@react-three/fiber` and `@react-three/drei`. Loads a GLTF model and maps meshes to configurable color groups by walking the ancestor node hierarchy to match named parent prefixes.
