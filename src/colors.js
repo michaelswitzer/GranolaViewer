@@ -31,7 +31,8 @@ function randomColorName() {
   return BEACON_COLORS[Math.floor(Math.random() * BEACON_COLORS.length)].name
 }
 
-export function getDefaultColors(colorStateKeys) {
+export function getDefaultColors(colorStateKeys, defaultColors) {
+  if (defaultColors) return { ...defaultColors }
   const result = {}
   for (const key of colorStateKeys) result[key] = randomColorName()
   return result

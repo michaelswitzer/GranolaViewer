@@ -15,7 +15,7 @@ if (config.modelUrl) {
 }
 
 export default function App() {
-  const [colors, setColors] = useState(() => getDefaultColors(config.colorStateKeys))
+  const [colors, setColors] = useState(() => getDefaultColors(config.colorStateKeys, config.defaultColors))
 
   const handleColorChange = useCallback((field, colorName) => {
     setColors((prev) => ({ ...prev, [field]: colorName }))

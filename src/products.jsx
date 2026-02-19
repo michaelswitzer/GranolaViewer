@@ -40,8 +40,18 @@ const beaconConfig = {
 const plateauConfig = {
   id: 'plateau',
   modelUrl: import.meta.env.VITE_PLATEAU_MODEL_URL || '',
-  camera: { position: [0, 0.15, 0.35], fov: 45 },
+  camera: { position: [0, 0, 0.35], fov: 45 },
   colorStateKeys: ['caseColor', ...PLATEAU_BUTTON_KEYS],
+  defaultColors: {
+    caseColor: 'Purple',
+    directionsButtons: 'Gray',
+    cStickButtons: 'Yellow',
+    aButton: 'Green',
+    bButton: 'Red',
+    zButton: 'Plum',
+    lrxyButtons: 'Gray',
+    shieldStartDpadButtons: 'Gray',
+  },
   fieldMap: {
     313063: 'caseColor',
     784763: 'directionsButtons',
@@ -58,14 +68,18 @@ const plateauConfig = {
       return PLATEAU_BUTTON_KEYS.map((key) => [key, colorName])
     },
   },
-  parentPrefixMap: [],
-  acrylicPrefix: 'Acrylic_Top',
-  logo: {
-    enabled: true,
-    texture: '/granola-logo.png',
-    bottomGroupTest: (parentName) =>
-      parentName === 'Case_Bottom' || parentName.startsWith('Case_Bottom_'),
-  },
+  parentPrefixMap: [
+    { prefix: 'Case', key: 'caseColor' },
+    { prefix: 'Directions_Buttons', key: 'directionsButtons' },
+    { prefix: 'CStick_Buttons', key: 'cStickButtons' },
+    { prefix: 'A_Button', key: 'aButton' },
+    { prefix: 'B_Button', key: 'bButton' },
+    { prefix: 'Z_Button', key: 'zButton' },
+    { prefix: 'LRXY_Buttons', key: 'lrxyButtons' },
+    { prefix: 'ShieldStartDpad_Buttons', key: 'shieldStartDpadButtons' },
+  ],
+  acrylicPrefix: null,
+  logo: { enabled: false, texture: '/granola-logo.png', bottomGroupTest: () => false },
 }
 
 const products = {

@@ -3,11 +3,23 @@ import { useGLTF, useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { findColor } from '../colors'
 
-function getStateKey(parentName, parentPrefixMap) {
-  for (const { prefix, key } of parentPrefixMap) {
-    if (parentName === prefix || parentName.startsWith(prefix + '_')) {
-      return key
+function matchesPrefix(name, prefix) {
+  if (!name) return false
+  // Strip trailing " <N>" suffix from GLTF export (e.g. "Directions_Buttons <1>")
+  const stripped = name.replace(/ <\d+>$/, '')
+  return stripped === prefix || stripped.startsWith(prefix + '_')
+}
+
+function getStateKey(mesh, parentPrefixMap) {
+  // Walk up ancestor chain to find a matching prefix
+  let node = mesh.parent
+  while (node) {
+    for (const { prefix, key } of parentPrefixMap) {
+      if (matchesPrefix(node.name, prefix)) {
+        return key
+      }
     }
+    node = node.parent
   }
   return null
 }
@@ -204,7 +216,7 @@ export default function ProductModel({ colors, config }) {
       if (!child.isMesh) return
       const parentName = child.parent?.name || 'none'
 
-      const stateKey = getStateKey(parentName, config.parentPrefixMap)
+      const stateKey = getStateKey(child, config.parentPrefixMap)
       if (stateKey) {
         if (!groups[stateKey]) groups[stateKey] = []
         groups[stateKey].push(child)
@@ -214,7 +226,7 @@ export default function ProductModel({ colors, config }) {
         bottoms.push(child)
       }
 
-      if (parentName === config.acrylicPrefix || parentName.startsWith(config.acrylicPrefix + '_')) {
+      if (config.acrylicPrefix && matchesPrefix(parentName, config.acrylicPrefix)) {
         child.material = createAcrylicMaterial()
       }
     })
