@@ -11,7 +11,7 @@ const PLATEAU_BUTTON_KEYS = [
 const beaconConfig = {
   id: 'beacon',
   modelUrl: import.meta.env.VITE_BEACON_MODEL_URL || import.meta.env.VITE_MODEL_URL || '',
-  camera: { position: [0, 0.1, 0.25], fov: 45 },
+  camera: { position: [-0.08, 0.03, 0.25], fov: 45 },
   colorStateKeys: ['caseColor', 'buttons24mm', 'buttons30mm', 'buttonsMenu'],
   fieldMap: {
     313063: 'caseColor',
