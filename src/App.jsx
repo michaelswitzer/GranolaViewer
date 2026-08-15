@@ -26,7 +26,7 @@ export default function App() {
   return (
     <>
       <Canvas camera={{ position: config.camera.position, fov: config.camera.fov }} gl={{ alpha: true }}>
-        <Scene>
+        <Scene target={config.camera.target}>
           <Suspense fallback={null}>
             {config.modelUrl && <ProductModel colors={colors} config={config} />}
           </Suspense>

@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei'
 
-export default function Scene({ children }) {
+export default function Scene({ children, target = [0, 0, 0] }) {
   return (
     <>
       <ambientLight intensity={0.6} />
@@ -13,6 +13,7 @@ export default function Scene({ children }) {
         maxDistance={20}
         minPolarAngle={0}
         maxPolarAngle={Math.PI}
+        target={target}
       />
       {children}
     </>

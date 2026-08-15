@@ -298,5 +298,5 @@ export default function ProductModel({ colors, config }) {
     }
   }, [colors])
 
-  return <primitive object={scene} />
+  return <primitive object={scene} rotation={config.modelRotation || [0, 0, 0]} />
 }

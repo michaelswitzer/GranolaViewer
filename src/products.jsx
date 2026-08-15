@@ -40,7 +40,10 @@ const beaconConfig = {
 const plateauConfig = {
   id: 'plateau',
   modelUrl: import.meta.env.VITE_PLATEAU_MODEL_URL || '',
-  camera: { position: [0, 0, 0.35], fov: 45 },
+  camera: { position: [0.14, 0.11, 0.32], fov: 45, target: [0.124, 0.068, 0] },
+  // Onshape export puts the thin case axis on Y and the tall axis on Z;
+  // rotate -90° about X so the front (buttons) faces +Z like the other products.
+  modelRotation: [-Math.PI / 2, 0, 0],
   colorStateKeys: ['caseColor', ...PLATEAU_BUTTON_KEYS],
   defaultColors: {
     caseColor: 'Purple',
@@ -79,7 +82,11 @@ const plateauConfig = {
     { prefix: 'ShieldStartDpad_Buttons', key: 'shieldStartDpadButtons' },
   ],
   acrylicPrefix: null,
-  logo: { enabled: false, texture: '/granola-logo.png', bottomGroupTest: () => false },
+  logo: {
+    enabled: true,
+    texture: '/granola-logo.png',
+    bottomGroupTest: (parentName) => parentName.includes('plateau-back'),
+  },
 }
 
 const products = {
